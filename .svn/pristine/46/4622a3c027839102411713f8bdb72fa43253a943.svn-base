@@ -1,0 +1,39 @@
+import requests
+from Helper_Files.send_error_log import send_error_log
+import logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+exchange_segment_map = {
+    'NSE': 'NSE_EQ',
+    'BSE': 'BSE_EQ'
+    }
+def fetch_historical_data(symbol,exchange, fromDate, toDate):
+    print("fetching_historical_data for symbol",symbol)
+    # Define a mapping for exchanges to their respective exchangeSegment
+    
+    # Get the correct exchangeSegment using the mapping, defaulting to 'NSE_EQ' if not found
+    exchange_segment = exchange_segment_map.get(exchange, 'NSE_EQ')
+    logging.debug(f"fetch_historical_data in exchange_segment...: {exchange_segment}")
+    url = "https://api.dhan.co/charts/historical"
+    headers = {
+        "Content-Type": "application/json",
+        "access-token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzI1NjEzMzUyLCJ0b2tlbkNvbnN1bWVyVHlwZSI6IlNFTEYiLCJ3ZWJob29rVXJsIjoiIiwiZGhhbkNsaWVudElkIjoiMTEwMTM0Mzg3MSJ9.Hm-KSGOhEhfveRUQ25U_hA9nQjrPDpV7UX6WJGaznYV7lRXaf-txSVPqxAqqLvMUJGliA6FfNAM0Fgdi7Dws3Q"
+    }
+    payload = {
+        "symbol": symbol,
+        "exchangeSegment": exchange_segment,
+        "instrument": "EQUITY",
+        "expiryCode": 0,
+        "fromDate": fromDate,
+        "toDate": toDate
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    data = response.json()
+
+    if "error" in data:
+        print("Error:", data["error"])
+        send_error_log(data["error"],"fetch_historical_data")
+        return None
+    else:
+        # print(data)  # Print the data to understand its structure
+        return data

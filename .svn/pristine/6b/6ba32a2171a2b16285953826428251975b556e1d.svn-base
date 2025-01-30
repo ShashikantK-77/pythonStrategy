@@ -1,0 +1,176 @@
+import time
+import threading
+import logging
+import asyncio
+import csv
+from datetime import datetime, timedelta
+
+from Helper_Files.strategy_combiner import combine_data, update_strategy_status
+from live_web_socket.live_websocket import live_websocket
+from live_web_socket.search_security_ids import search_security_ids
+from Helper_Files.calculate_sma import calculate_sma
+from Helper_Files.get_latest_ltp import get_latest_ltp
+from Helper_Files.update_execution_count import update_execution_count
+
+from Helper_Files.place_order import place_order
+from Helper_Files.fetch_historical_data import fetch_historical_data
+from Helper_Files.unique_symbol import get_unique_symbols, read_csv
+from Helper_Files.read_security_ids import read_security_ids
+from Helper_Files.place_paper_trade_order import place_paper_trade_order
+from Helper_Files.save_backtest_results import save_backtest_results
+from Helper_Files.rsi import calculate_rsi
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def read_security_ids(file_path):
+    security_ids_map = {}
+    with open(file_path, newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            symbol = row['Symbol']
+            exchange_id = int(row['Exchange ID'])
+            security_id = int(row['Security ID'])
+            security_ids_map[symbol] = (exchange_id, security_id)
+    return security_ids_map
+
+async def process_symbols(symbols):
+    logging.debug('Processing symbols: %s', symbols)
+    security_ids_list = search_security_ids(symbols)
+    await live_websocket(security_ids_list)
+
+async def websocket_engine(strategy_file, csv_symbols_event, strategy_done_event):
+    logging.debug("Starting websocket engine")
+    csv_symbols_event.wait()
+    symbols = get_unique_symbols(strategy_file)
+    await process_symbols(symbols)
+
+def strategy_engine(strategy_file, csv_symbols_event, strategy_done_event):
+    logging.debug("Starting strategy engine")
+    security_ids_map = read_security_ids('Input_Files/unique_symbols_security_ids.csv')
+
+    calculation_method = 'RSI'  # Set the default calculation method
+
+    while not strategy_done_event.is_set():
+        strategy_data_list = combine_data(strategy_file, 'Input_Files/indicators.csv', 'Input_Files/indicator_parameters.csv', 'Input_Files/actions.csv')
+        symbols = get_unique_symbols(strategy_file)
+        csv_symbols_event.set()
+
+        if not symbols:
+            logging.error("No symbols found in strategy file.")
+            return
+
+        fromDate = '2023-05-01'
+        toDate = (datetime.today() - timedelta(days=1)).strftime('%Y-%m-%d')
+
+        for symbol in symbols:
+            exchange = symbol['exchanges'][0]
+            category = symbol['categories'][0]
+            security_id = security_ids_map.get(symbol['symbol'], (None, None))[1]
+
+            if security_id is None:
+                logging.error("No security ID found for symbol: %s", symbol['symbol'])
+                continue
+
+            data = fetch_historical_data(symbol['symbol'], fromDate, toDate)
+            latest_ltp = get_latest_ltp(security_id)
+            logging.debug("Latest LTP: %s", latest_ltp)
+
+            if data and latest_ltp is not None:
+                waiting_strategy_exists = any(strategy_data['strategy']['status'] == 'waiting' for strategy_data in strategy_data_list)
+
+                if not waiting_strategy_exists:
+                    logging.debug("No waiting strategies found")
+                    time.sleep(1)
+                    continue
+
+                strategy_executed = False
+
+                for strategy_data in strategy_data_list:
+                    if strategy_data['strategy']['status'] == 'executed':
+                        logging.debug("Skipping strategy '%s' because it's already executed", strategy_data['strategy']['strategy_name'])
+                        continue
+
+                    # Execute actions based on execution count
+                    for action in strategy_data['actions']:
+                        action['executionCount'] = int(action['executionCount'])  # Convert executionCount to integer
+                        if action['executionCount'] > 0:
+                            action['executionCount'] -= 1
+                            logging.debug(f"Execution Count after decrement: {action['executionCount']}")
+
+                            if action['executionCount'] == 0:
+                                strategy_data['strategy']['status'] = 'executed'
+                                logging.debug(f"Strategy fully executed. Status: {strategy_data['strategy']['status']}")
+                                update_strategy_status(strategy_data['strategy']['strategy_id'])
+                            else:
+                                logging.debug(f"Strategy not fully executed yet, remaining execution count: {action['executionCount']}")
+                                strategy_executed = True
+
+                            # Save the updated execution count back to the strategy file
+                            update_execution_count(strategy_data_list, strategy_file)
+
+                            short_term_sma = None
+                            long_term_sma = None
+                            rsi_order_flag = False
+
+                            for indicator in strategy_data['indicators']:
+                                if indicator['indicator_name'] == 'Simple Moving Average':
+                                    parameters = indicator['parameters']
+                                    for param in parameters:
+                                        if param['parameter_name'] == 'short_term_period':
+                                            short_term_period = int(param['parameter_value'])
+                                        elif param['parameter_name'] == 'long_term_period':
+                                            long_term_period = int(param['parameter_value'])
+
+                                    short_term_sma = calculate_sma(data, short_term_period)
+                                    long_term_sma = calculate_sma(data, long_term_period)
+
+                                elif indicator['indicator_name'] == 'Relative Strength Index':
+                                    rsi = calculate_rsi(data)
+                                    if rsi.iloc[-1] > 20:
+                                        rsi_order_flag = True
+
+                            if calculation_method == 'SMA':
+                                if short_term_sma is not None and long_term_sma is not None:
+                                    if (short_term_sma - long_term_sma) >= 15 and latest_ltp >= short_term_sma:
+                                        logging.info("Buy Signal Generated")
+                                        if strategy_data['strategy']['isPaperTrading']:
+                                            place_paper_trade_order(strategy_data['actions'], strategy_data['strategy']['strategy_id'], strategy_data, security_id)
+                                        else:
+                                            place_order(strategy_data['actions'], strategy_data['strategy']['strategy_id'], strategy_data, security_id)
+                                        strategy_executed = True
+
+                            elif calculation_method == 'RSI':
+                                if rsi_order_flag:
+                                    logging.info("Placing order based on RSI condition")
+                                    if strategy_data['strategy']['isPaperTrading']:
+                                        place_paper_trade_order(strategy_data['actions'], strategy_data['strategy']['strategy_id'], strategy_data, security_id)
+                                    else:
+                                        place_order(strategy_data['actions'], strategy_data['strategy']['strategy_id'], strategy_data, security_id)
+                                    strategy_executed = True
+
+                    if not strategy_executed:
+                        time.sleep(1)
+
+if __name__ == "__main__":
+    logging.debug("Main program started")
+    csv_symbols_event = threading.Event()
+    strategy_done_event = threading.Event()
+
+    strategy_thread = threading.Thread(target=strategy_engine, args=('Input_Files/strategy.csv', csv_symbols_event, strategy_done_event))
+    websocket_thread = threading.Thread(target=lambda: asyncio.run(websocket_engine('Input_Files/strategy.csv', csv_symbols_event, strategy_done_event)))
+
+    try:
+        strategy_thread.start()
+        websocket_thread.start()
+
+        strategy_thread.join()
+        strategy_done_event.set()
+        websocket_thread.join()
+    except KeyboardInterrupt:
+        logging.debug("KeyboardInterrupt received. Shutting down.")
+        strategy_done_event.set()
+        strategy_thread.join()
+        websocket_thread.join()
+    finally:
+        logging.debug("Main program finished")

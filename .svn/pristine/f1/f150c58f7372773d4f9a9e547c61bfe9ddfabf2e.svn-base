@@ -1,0 +1,145 @@
+# mainj.py
+
+import time
+import threading
+import logging
+import asyncio
+from Helper_Files.strategy_combiner import combine_data, update_strategy_status
+from live_web_socket.live_websocket import live_websocket  # Import the live_websocket function
+from live_web_socket.search_security_ids import search_security_ids
+from Helper_Files.calculate_sma import calculate_sma
+from Helper_Files.get_latest_ltp import get_latest_ltp
+from Helper_Files.place_order import place_order
+from Helper_Files.fetch_historical_data import fetch_historical_data
+from Helper_Files.unique_symbol import get_unique_symbols, read_csv
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def calculate_sma(data, period):
+    logging.debug("Calculating SMA with period: %s", period)
+    
+    close_prices = data.get('close')
+    if close_prices is None:
+        logging.error("No 'close' prices in data: %s", data)
+        return None
+
+    sma = []
+    if period is None:
+        return None
+
+    for i in range(len(close_prices)):
+        if i < period - 1:
+            sma.append(None)
+        else:
+            sma.append(sum(close_prices[i - period + 1:i + 1]) / period)
+
+    return sma[-1] if sma else None
+
+def strategy_engine(strategy_file, csv_symbols_event, strategy_done_event):
+    logging.debug("Starting strategy engine")
+    strategy_data_list = combine_data(strategy_file, 'Input_Files/indicators.csv', 'Input_Files/indicator_parameters.csv', 'Input_Files/actions.csv')
+    symbols = get_unique_symbols(strategy_file)
+    csv_symbols_event.set()  # Notify that symbols are ready
+
+    if not symbols:
+        logging.error("No symbols found in strategy file.")
+        return
+
+    symbol = symbols[0]
+    toDate = "2024-05-16"
+    fromDate = "2023-05-12"
+
+    while not strategy_done_event.is_set():
+        logging.debug("Fetching historical data for symbol: %s", symbol)
+        data = fetch_historical_data(symbol, fromDate, toDate)
+        latest_ltp = get_latest_ltp()
+        logging.debug("Latest LTP: %s", latest_ltp)
+
+        if data and latest_ltp is not None:
+            waiting_strategy_exists = any(strategy_data['strategy']['status'] == 'waiting' for strategy_data in strategy_data_list)
+            
+            if not waiting_strategy_exists:
+                logging.debug("No waiting strategies found")
+                time.sleep(1)
+                continue
+
+            strategy_executed = False
+
+            for strategy_data in strategy_data_list:
+                if strategy_data['strategy']['status'] == 'executed':
+                    logging.debug("Skipping strategy '%s' because it's already executed", strategy_data['strategy']['strategy_name'])
+                    continue
+
+                short_term_period = None
+                long_term_period = None
+
+                for indicator in strategy_data['indicators']:
+                    if indicator['indicator_name'] == 'Simple Moving Average':
+                        parameters = indicator['parameters']
+                        for param in parameters:
+                            if param['parameter_name'] == 'short_term_period':
+                                short_term_period = int(param['parameter_value'])
+                            elif param['parameter_name'] == 'long_term_period':
+                                long_term_period = int(param['parameter_value'])
+
+                short_term_sma = calculate_sma(data, short_term_period)
+                long_term_sma = calculate_sma(data, long_term_period)
+
+                logging.debug("Strategy: %s", strategy_data['strategy']['strategy_name'])
+                logging.debug("Short-term SMA (%s): %s", short_term_period, short_term_sma)
+                logging.debug("Long-term SMA (%s): %s", long_term_period, long_term_sma)
+                logging.debug("LTP: %s", latest_ltp)
+
+                if short_term_sma is not None and long_term_sma is not None:
+                    if (short_term_sma - long_term_sma) >= 15 and latest_ltp >= short_term_sma:
+                        logging.info("Buy Signal Generated")
+                        place_order(strategy_data['actions'], strategy_data['strategy']['strategy_id'])
+                        update_strategy_status(strategy_data['strategy']['strategy_id'])
+                        strategy_data_list = combine_data(strategy_file, 'Input_Files/indicators.csv', 'Input_Files/indicator_parameters.csv', 'Input_Files/actions.csv')
+                        strategy_executed = True
+                        break
+                    else:
+                        logging.debug("Buy Signal Not Generated")
+
+            if not strategy_executed:
+                time.sleep(1)
+
+# Modify websocket_engine to run within an asyncio event loop
+# Modify websocket_engine to run within an asyncio event loop
+async def websocket_engine(strategy_file, csv_symbols_event, strategy_done_event):
+    logging.debug("Starting websocket engine")
+    csv_symbols_event.wait()  # Wait until symbols are ready
+    symbols = get_unique_symbols(strategy_file)
+    
+    # Check if an event loop is already running
+    if asyncio.get_event_loop().is_running():
+        logging.debug("Using existing event loop")
+        live_websocket(symbols)  # Await the WebSocket engine function within the existing event loop
+    else:
+        logging.debug("Creating new event loop")
+        asyncio.run(live_websocket(symbols))  # Create and run a new event loop for the WebSocket engine function
+
+# Modify the main program to use asyncio's run function
+if __name__ == "__main__":
+    logging.debug("Main program started")
+    csv_symbols_event = threading.Event()
+    strategy_done_event = threading.Event()
+
+    strategy_thread = threading.Thread(target=strategy_engine, args=('Input_Files/strategy.csv', csv_symbols_event, strategy_done_event))
+    websocket_thread = threading.Thread(target=lambda: asyncio.run(websocket_engine('Input_Files/strategy.csv', csv_symbols_event, strategy_done_event)))  # Use lambda to call the function inside a thread
+
+    try:
+        strategy_thread.start()
+        websocket_thread.start()
+
+        strategy_thread.join()
+        strategy_done_event.set()
+        websocket_thread.join()
+    except KeyboardInterrupt:
+        logging.debug("KeyboardInterrupt received. Shutting down.")
+        strategy_done_event.set()
+        strategy_thread.join()
+        websocket_thread.join()
+    finally:
+        logging.debug("Main program finished")

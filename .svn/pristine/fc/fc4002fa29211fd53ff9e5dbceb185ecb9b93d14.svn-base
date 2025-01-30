@@ -1,0 +1,298 @@
+import time
+import threading
+import logging
+import asyncio
+import csv
+from datetime import datetime, timedelta
+
+from Helper_Files.strategy_combiner import combine_data, update_strategy_status 
+from Helper_Files.check_pending_orders import check_pending_orders
+
+from live_web_socket.live_websocket import live_websocket
+from live_web_socket.search_security_ids import search_security_ids
+from Helper_Files.calculate_sma import calculate_sma
+from Helper_Files.get_latest_ltp import get_latest_ltp
+from Helper_Files.update_execution_count import update_execution_count
+from Helper_Files.increment_operation_count import increment_operation_count
+from Helper_Files.place_order import place_order
+from Helper_Files.fetch_historical_data import fetch_historical_data
+from Helper_Files.unique_symbol import get_unique_symbols, read_csv
+from Helper_Files.read_security_ids import read_security_ids
+from Helper_Files.place_paper_trade_order import place_paper_trade_order
+from Helper_Files.save_backtest_results import save_backtest_results
+from Helper_Files.rsi import calculate_rsi
+from Helper_Files.send_error_log import send_error_log
+from Helper_Files.check_risk_order_status import update_strategy_statusforexecutioncount
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def read_security_ids(file_path):
+    security_ids_map = {}
+    try:
+        with open(file_path, newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                symbol = row['Symbol']
+                exchange_id = int(row['Exchange ID'])
+                security_id = int(row['Security ID'])
+                security_ids_map[symbol] = (exchange_id, security_id)
+    except Exception as e:
+        error_message = f"Error reading security IDs: {str(e)}"
+        send_error_log(error_message, 'read_security_ids')
+    return security_ids_map
+
+def ensure_operation_count(actions):
+    """ Ensure 'operationCount' column exists and initialize if not present """
+    for action in actions:
+        if 'operationCount' not in action:
+            action['operationCount'] = 0  # Initialize operationCount
+
+async def process_symbols(symbols):
+    # logging.debug(f'Processing symbols:::::::::::::::::::: %s', symbols)
+    security_ids_list = search_security_ids(symbols)
+    logging.debug(f"security_ids_list after  search_security_ids websocket engine",security_ids_list)
+    await live_websocket(security_ids_list)
+
+    # await live_websocket()
+
+async def websocket_engine(strategy_file, csv_symbols_event, strategy_done_event):
+    logging.debug(f"Starting websocket engine")
+    csv_symbols_event.wait()
+    symbols = get_unique_symbols()
+    
+    # logging.debug(f"symbols from get_unique_symbols:",symbols)
+    await process_symbols(symbols)
+
+def strategy_engine(strategy_file, csv_symbols_event, strategy_done_event):
+    logging.debug(f"Starting strategy engine")
+    security_ids_map = read_security_ids('Input_Files/unique_symbols_security_ids.csv')
+
+    calculation_method = 'RSI'  # Set the default calculation method
+
+    while not strategy_done_event.is_set():
+        strategy_data_list = combine_data()
+        logging.debug(f"strategy_data_list combine_data esponse:",strategy_data_list)
+        symbols = get_unique_symbols()
+        # logging.debug("strategy_data_list get_unique_symbols response:",symbols)
+        csv_symbols_event.set()
+
+        if not symbols:
+            logging.error("No symbols found in strategy file.")
+            return
+
+        fromDate = '2023-05-01'
+        toDate = (datetime.today() - timedelta(days=1)).strftime('%Y-%m-%d')
+
+        # for symbol in symbols:
+        #     exchange = symbol['exchanges'][0]
+        #     category = symbol['categories'][0]
+        #     security_id = security_ids_map.get(symbol['symbol'], (None, None))[1]
+        #     logging.debug("~~~~~~~~~~~~~~~strategy_data security_id~~~~~~~~~~~~~~~~~~~~~~~~~~~~:",security_id)
+
+        #     if security_id is None:
+        #         error_message = f"No security ID found for symbol: {symbol['symbol']}"
+        #         send_error_log(error_message, 'strategy_engine')
+        #         # logging.error(error_message)
+        #         continue
+
+            # data = fetch_historical_data(symbol['symbol'], fromDate, toDate)
+            # latest_ltp = get_latest_ltp(security_id)
+            # latest_ltp = 25
+            # logging.debug("Latest LTP: %s", latest_ltp)
+
+            # logging.debug("strategy_data_lists >>>>>>>>>>>>", strategy_data_list)
+
+        if strategy_data_list is not None:
+                waiting_strategy_exists = any(strategy_data['strategy']['status'] == 'waiting' for strategy_data in strategy_data_list)
+                logging.debug(f"waiting_strategy_exists:",waiting_strategy_exists)
+                if not waiting_strategy_exists:
+                    logging.debug(f"No waiting strategies found")
+                    send_error_log("No waiting strategies found",strategy_engine)
+                    time.sleep(1)
+                    continue
+
+                strategy_executed = False
+
+                for strategy_data in strategy_data_list:
+                    # update_strategy_statusforexecutioncount(strategy_data['strategy']['strategy_id'])
+
+                    if strategy_data['strategy']['status'] == 'executed':
+                        logging.debug("Skipping strategy '%s' because it's already executed", strategy_data['strategy']['strategy_name'])
+                        continue
+
+                    # ensure_operation_count(strategy_data['actions'])
+
+                    # Execute actions based on execution count and operation count
+                    for action in strategy_data['actions']:
+                        action['executionCount'] = int(action['executionCount'])  # Convert executionCount to integer
+                        # action['operationCount'] = int(action['operationcount'])  # Ensure operationCount is an integer
+                        operation_count = action.get('operationcount')
+                        action['operationCount'] = int(operation_count) if operation_count is not None else 0
+                        logging.debug(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+                        logging.debug(f"Processing action for strategy '{strategy_data['strategy']['strategy_name']}' with executionCount={action['executionCount']} and operationCount={action['operationCount']}")
+                        logging.debug(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+                        if action['operationCount'] == action['executionCount']:
+                            # action['operationCount'] += 1
+                            logging.debug(f"Action for strategy '{strategy_data['strategy']['strategy_name']}' has already reached the maximum execution count")
+                            send_error_log("Action for strategy has already reached the maximum execution count", 'strategy_engine')
+                        else:
+
+                            if action['operationCount'] == action['executionCount']:
+                                strategy_data['strategy']['status'] = 'executed'
+                                logging.debug(f"Strategy '{strategy_data['strategy']['strategy_name']}' fully executed. Status updated to: {strategy_data['strategy']['status']}")
+                                # update_strategy_status(strategy_data['strategy']['strategy_id'])
+                                strategy_executed = False
+                                continue  
+
+                            if action['operationCount'] < action['executionCount']:
+                                logging.debug(f"Strategy '{strategy_data['strategy']['strategy_name']}' not fully executed yet. Remaining operation count: {action['operationCount']}")
+                                strategy_executed = True
+                symbol = strategy_data['strategy']['symbol']   
+                    # Map security ID only for the symbol of the waiting strategy
+                security_id = security_ids_map.get(symbol, (None, None))[1]
+                logging.debug(f"Security ID for symbol {symbol}: {security_id}")
+                if security_id is None:
+                    error_message = f"No security ID found for symbol: {symbol}"
+                    send_error_log(error_message, 'strategy_engine')
+                    continue
+
+            # Fetch historical data and latest LTP for the symbol
+                data = fetch_historical_data(symbol,strategy_data['strategy']['exchange'], fromDate, toDate,period=None)
+                latest_ltp = get_latest_ltp(security_id)
+                            # else:
+                            #     logging.debug(f"Strategy '{strategy_data['strategy']['strategy_name']}' not fully executed yet. Remaining operation count: {action['operationCount']}")
+                            #     strategy_executed = True
+
+                            # Save the updated execution count back to the strategy file
+                            # update_execution_count(strategy_data_list, strategy_file)
+                if strategy_executed:        
+                    short_term_sma = None
+                    long_term_sma = None
+                    rsi_order_flag = False
+                    
+                    # logging.debug(f"```````````````````````strategy_data``````````````````````` ',{strategy_data}'")
+            
+                    
+
+                    for indicator in strategy_data['indicators']:
+                        # print("indicator in strategy_data['indicators']:",indicator)
+                        if indicator['indicator_name'] == 'Simple Moving Average':
+                            parameters = indicator.get('parameters', [])
+                            short_term_period = long_term_period = None  # Initialize variables
+
+                            for param in parameters:
+                                if param['param_name'] == 'short_term_period':
+                                    short_term_period = int(param['param_value'])
+                                elif param['param_name'] == 'long_term_period':
+                                    long_term_period = int(param['param_value'])
+
+                            try:
+                                short_term_sma = calculate_sma(data, short_term_period)
+                                long_term_sma = calculate_sma(data, long_term_period)
+                            except Exception as e:
+                                error_message = f"Error calculating SMA for symbol {symbol['symbol']}: {str(e)}"
+                                send_error_log(error_message, 'strategy_engine')
+
+                        elif indicator['indicator_name'] == 'Relative Strength Index': 
+                            # Initialize a dictionary to store the parameter values
+                            rsi_params = {}
+
+# Iterate through the indicators list and extract the desired parameters
+                            for param in strategy_data_list[0].get('indicators', []):
+                                if param['indicator_name'] == 'Relative Strength Index':
+                                    param_name = param['param_name']
+                                    param_value = param['param_value']
+        
+        # Debug log to check if values are being processed correctly
+                                    # logging.debug(f"Storing param - {param_name}: {param_value}")
+        
+        # Store the param_name and param_value in the dictionary
+                                    rsi_params[param_name] = param_value
+
+# Debug the rsi_params dictionary
+                                    # logging.debug(f"RSI Parameters dictionary: {rsi_params}")
+
+# Access and log the parameters
+                                    overbought = rsi_params.get('overbought')
+                                    oversold = rsi_params.get('oversold')
+                                    period = rsi_params.get('period')
+
+# Logging the result for debugging purposes
+                                    # logging.debug(f"RSI Parameters final - overbought: {overbought}, oversold: {oversold}, period: {period}")
+    
+
+                            hdata = fetch_historical_data(symbol,strategy_data['strategy']['exchange'], fromDate, toDate,period)
+                            # 
+                            try:
+                                rsi = calculate_rsi(hdata)
+                                # logging.debug("------ rsi is returning rsi.iloc[-1]: ------->",rsi.iloc[-1])
+                                if rsi.iloc[-1] > 20:
+                                    rsi_order_flag = True
+                            except Exception as e:
+                                error_message = f"Error calculating RSI for symbol {symbol['symbol']}: {str(e)}"
+                                send_error_log(error_message, 'strategy_engine')
+
+                    if calculation_method == 'SMA':
+                        if short_term_sma is not None and long_term_sma is not None:
+                            if (short_term_sma - long_term_sma) >= 15 and latest_ltp >= short_term_sma:
+                                logging.debug(f"Buy Signal Generated for strategy '{strategy_data['strategy']['strategy_name']}'")
+                                if strategy_data['strategy']['isPaperTrading']:
+                                    place_paper_trade_order(strategy_data['actions'], strategy_data['strategy']['strategy_id'], strategy_data, security_id)
+                                else:
+                                    place_order(strategy_data['actions'], strategy_data['strategy']['strategy_id'], strategy_data, security_id)
+                                strategy_executed = True
+
+                    elif calculation_method == 'RSI':
+                        if rsi_order_flag:
+                            logging.debug(f"--------------------------------Placing order based on RSI condition for strategy '{strategy_data['strategy']['strategy_name']}' --------------------------------")
+                            logging.debug(f"--------------------------------strategy_data ',{strategy_data}'")
+                            logging.debug(f"--------------------------------Placing order based security_id  ',{security_id}'")
+                            place_order(strategy_data['actions'], strategy_data['strategy']['strategy_id'], strategy_data, security_id)
+                            # increment_operation_count()
+                            # update_strategy_status(strategy_data['strategy']['strategy_id'])
+                            strategy_executed = True
+
+                    if not strategy_executed:
+                        time.sleep(1)
+
+
+def status_update_engine(strategy_done_event):
+    logging.debug(f"status_update_engine")
+    while not strategy_done_event.is_set():
+        try:
+            # Place the logic to update strategy status here
+            check_pending_orders()  # Define this function as per your logic
+            time.sleep(5)  # Adjust the sleep time as per your requirements
+        except Exception as e:
+            error_message = f"Error in status update engine: {e}"
+            send_error_log(error_message, 'status_update_engine')
+    logging.debug(f"Status update engine stopped")
+
+
+if __name__ == "__main__":
+    logging.debug(f"Main program started")
+    csv_symbols_event = threading.Event()
+    strategy_done_event = threading.Event()
+
+    strategy_thread = threading.Thread(target=strategy_engine, args=('Input_Files/strategy.csv', csv_symbols_event, strategy_done_event))
+    websocket_thread = threading.Thread(target=lambda: asyncio.run(websocket_engine('Input_Files/strategy.csv', csv_symbols_event, strategy_done_event)))
+    status_update_thread = threading.Thread(target=status_update_engine, args=(strategy_done_event,))
+
+    try:
+        strategy_thread.start()
+        websocket_thread.start()
+        # status_update_thread.start()
+
+        strategy_thread.join()
+        strategy_done_event.set()
+        websocket_thread.join()
+        # status_update_thread.join()
+    except KeyboardInterrupt:
+        logging.debug(f"KeyboardInterrupt received. Shutting down.")
+        strategy_done_event.set()
+        strategy_thread.join()
+        websocket_thread.join()
+        # status_update_thread.join()
+    finally:
+        logging.debug(f"Main program finished")

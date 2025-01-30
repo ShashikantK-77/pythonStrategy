@@ -1,0 +1,129 @@
+from dhanhq import marketfeed
+import csv
+import os
+import asyncio
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+async def on_connect(instance):
+    print("Connected to websocket")
+
+async def on_message(instance, message):
+    try:
+        if 'type' in message:
+            if message['type'] == 'Ticker Data':
+                # Check if the file exists, if not, write the header row
+                if not os.path.exists('live_web_socket/dhan_LTP.csv'):
+                    with open('live_web_socket/dhan_LTP.csv', 'w', newline='') as csvfile:
+                        writer = csv.writer(csvfile)
+                        writer.writerow(['Type', 'Exchange Segment', 'Security ID', 'LTP', 'LTT'])
+                
+                # Read the existing data
+                existing_data = {}
+                if os.path.exists('live_web_socket/dhan_LTP.csv'):
+                    with open('live_web_socket/dhan_LTP.csv', 'r', newline='') as csvfile:
+                        reader = csv.DictReader(csvfile)
+                        for row in reader:
+                            existing_data[row['Security ID']] = row
+
+                # Update the data for the current security ID
+                existing_data[message.get('security_id', '')] = {
+                    'Type': message.get('type', ''),
+                    'Exchange Segment': message.get('exchange_segment', ''),
+                    'Security ID': message.get('security_id', ''),
+                    'LTP': message.get('LTP', ''),
+                    'LTT': message.get('LTT', '')
+                }
+
+                # Write the data back to the CSV file
+                with open('live_web_socket/dhan_LTP.csv', 'w', newline='') as csvfile:
+                    fieldnames = ['Type', 'Exchange Segment', 'Security ID', 'LTP', 'LTT']
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    for row in existing_data.values():
+                        writer.writerow(row)
+
+    except Exception as e:
+        print("Error processing message:", e)
+        print("Message causing the issue:", message)
+
+
+
+# async def live_websocket(instruments):
+#     connected = False
+#     while not connected:
+#         try:
+#             # Add your Dhan Client ID and Access Token
+#             # instruments=[(1,"100"),(1,"10318"),(4,"500087"),(2,"1001"),(1,"21713")]
+#             # instruments = [(1, "1333"),(0,"13")]
+#             # print("instruments in web socket::::::::::::::::::::", instruments)
+
+#             client_id = "1101343871"
+#             access_token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzI1NjEzMzUyLCJ0b2tlbkNvbnN1bWVyVHlwZSI6IlNFTEYiLCJ3ZWJob29rVXJsIjoiIiwiZGhhbkNsaWVudElkIjoiMTEwMTM0Mzg3MSJ9.Hm-KSGOhEhfveRUQ25U_hA9nQjrPDpV7UX6WJGaznYV7lRXaf-txSVPqxAqqLvMUJGliA6FfNAM0Fgdi7Dws3Q'
+#             logging.debug(f'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~', )
+#             logging.debug(f'Processing instruments for ltp:::::::::::::::::::: %s', instruments)
+#             logging.debug(f'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~', )
+
+#             # Type of data subscription
+#             subscription_code = marketfeed.Ticker
+
+            
+
+#             print("Subscription code :", subscription_code)
+
+#             feed = marketfeed.DhanFeed(
+#                 client_id,
+#                 access_token,
+#                 instruments,
+#                 subscription_code,
+#                 on_connect=on_connect,
+#                 on_message=on_message
+#             )
+
+#             await feed.connect()  # Await the connect coroutine
+#             await feed.run_forever()  # Await the run_forever coroutine
+
+#             connected = True  # Set connected to True if connection successful
+#         except Exception as e:
+#             print("Error connecting to websocket:", e)
+#             await asyncio.sleep(2)  # Retry after 5 seconds if connection fails
+
+
+async def live_websocket(instruments):
+    connected = False
+    while not connected:
+        try:
+            # Convert instruments to the desired format
+            formatted_instruments = [(item['exchangeId'], item['securityId']) for item in instruments]
+            print("Formatted instruments:", formatted_instruments)
+            
+            client_id = "1101343871"
+            access_token = 'your_access_token_here'  # Replace with your actual access token
+            
+            # logging.debug(f'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~', )
+            # logging.debug(f'Processing instruments for ltp:::::::::::::::::::: %s', formatted_instruments)
+            # logging.debug(f'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~', )
+
+            # Type of data subscription
+            subscription_code = marketfeed.Ticker
+
+            print("Subscription code :", subscription_code)
+
+            feed = marketfeed.DhanFeed(
+                client_id,
+                access_token,
+                formatted_instruments,
+                subscription_code,
+                on_connect=on_connect,
+                on_message=on_message
+            )
+
+            await feed.connect()  # Await the connect coroutine
+            await feed.run_forever()  # Await the run_forever coroutine
+
+            connected = True  # Set connected to True if connection successful
+        except Exception as e:
+            print("Error connecting to websocket:", e)
+            await asyncio.sleep(2)  # Retry after 2 seconds if connection fails

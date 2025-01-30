@@ -1,0 +1,298 @@
+# import logging
+# from datetime import datetime, timedelta
+# from Helper_Files.calculate_sma import calculate_sma
+# from Helper_Files.rsi import calculate_rsi
+# from Helper_Files.fetch_historical_data import fetch_historical_data
+# from Helper_Files.send_error_log import send_error_log
+
+# # Configure logging
+# logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# # Define the date range for historical data
+# fromDate = '2023-05-01'
+# toDate = (datetime.today() - timedelta(days=1)).strftime('%Y-%m-%d')
+
+# def process_indicators(strategy_data, data, symbol, security_id):
+#     logging.debug(f"Strategy Data: {strategy_data}, Symbol: {symbol}, Security ID: {security_id}")
+
+#     # Extract indicators and actions from strategy data
+#     indicators = strategy_data.get('indicators', [])
+#     actions = strategy_data.get('actions', [])
+
+#     # Initialize flags
+#     rsi_order_flag = False
+#     sma_order_flag = False
+
+#     # Process each indicator
+#     for indicator in indicators:
+#         if indicator['indicator_name'] == 'Simple Moving Average':
+#             parameters = indicator.get('parameters', [])
+#             short_term_period = long_term_period = None
+
+#             # Extract SMA parameters
+#             for param in parameters:
+#                 if param['param_name'] == 'short_term_period':
+#                     short_term_period = int(param['param_value'])
+#                 elif param['param_name'] == 'long_term_period':
+#                     long_term_period = int(param['param_value'])
+
+#             try:
+#                 # Calculate SMA
+#                 short_term_sma = calculate_sma(data, short_term_period)
+#                 long_term_sma = calculate_sma(data, long_term_period)
+#                 # Your SMA condition logic here
+#                 # For example: if short_term_sma > long_term_sma: sma_order_flag = True
+#             except Exception as e:
+#                 error_message = f"Error calculating SMA for symbol {symbol}: {str(e)}"
+#                 send_error_log(error_message, 'strategy_engine')
+
+#         elif indicator['indicator_name'] == 'Relative Strength Index':
+#             rsi_params = {param['param_name']: param['param_value'] for param in indicators if param['indicator_name'] == 'Relative Strength Index'}
+            
+#             overbought = float(rsi_params.get('overbought', 0))
+#             oversold = float(rsi_params.get('oversold', 0))
+#             period = int(rsi_params.get('period', 14))
+
+#             # Fetch historical data for RSI calculation
+#             hdata = fetch_historical_data(symbol, strategy_data['strategy']['exchange'], fromDate, toDate, period)
+
+#             try:
+#                 # Calculate RSI
+#                 rsi = calculate_rsi(hdata)
+
+#                 # Current RSI value
+#                 current_rsi = rsi.iloc[-1]
+
+#                 # Check if RSI condition meets for buying or selling action
+#                 if current_rsi > overbought:
+#             # RSI is overbought
+#                     logging.debug(f"RSI is overbought ({current_rsi}). Checking for selling actions.")
+#                     rsi_order_flag = any(action['action_name'] == 'sell' for action in actions)
+#                     if not rsi_order_flag:
+#                         return False
+
+#                 elif current_rsi < oversold:
+#                 # RSI is oversold
+#                     logging.debug(f"RSI is oversold ({current_rsi}). Checking for buying actions.")
+#                     rsi_order_flag = any(action['action_name'] == 'buy' for action in actions)
+#                     if not rsi_order_flag:
+#                         return False
+
+#             except Exception as e:
+#                 error_message = f"Error calculating RSI for symbol {symbol}: {str(e)}"
+#                 send_error_log(error_message, 'strategy_engine')
+
+#     # Return the final result based on the conditions
+#     return rsi_order_flag or sma_order_flag
+
+
+
+import logging
+from datetime import datetime, timedelta
+from Helper_Files.calculate_sma import calculate_sma
+from Helper_Files.rsi import calculate_rsi
+from Helper_Files.fetch_historical_data import fetch_historical_data
+from Helper_Files.send_error_log import send_error_log
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Define the date range for historical data
+fromDate = '2023-05-01'
+toDate = (datetime.today() - timedelta(days=1)).strftime('%Y-%m-%d')
+
+# def process_indicators(strategy_data, symbol, security_id):
+#     logging.debug(f"Strategy Data: {strategy_data}, Symbol: {symbol}, Security ID: {security_id}")
+
+#     # Extract indicators and actions from strategy data
+#     indicators = strategy_data.get('indicators', [])
+#     actions = strategy_data.get('actions', [])
+
+#     # Initialize a single flag for all indicators
+#     combined_order_flag = False
+
+#     # Process each indicator
+#     for indicator in indicators:
+#         if indicator['indicator_name'] == 'Simple Moving Average':
+#             parameters = indicator.get('parameters', [])
+#             hdata = fetch_historical_data(symbol, strategy_data['strategy']['exchange'], fromDate, toDate, period=None)
+#             short_term_period = long_term_period = None
+
+#             # Extract SMA parameters
+#             for param in parameters:
+#                 if param['param_name'] == 'short_term_period':
+#                     short_term_period = int(param['param_value'])
+#                 elif param['param_name'] == 'long_term_period':
+#                     long_term_period = int(param['param_value'])
+
+#             try:
+#                 # Calculate SMA
+#                 short_term_sma = calculate_sma(hdata, short_term_period)
+#                 long_term_sma = calculate_sma(hdata, long_term_period)
+                
+#                 # Example SMA condition logic
+#                 if short_term_sma > long_term_sma:
+#                     combined_order_flag = True
+
+#             except Exception as e:
+#                 error_message = f"Error calculating SMA for symbol {symbol}: {str(e)}"
+#                 send_error_log(error_message, 'strategy_engine')
+
+#         elif indicator['indicator_name'] == 'Relative Strength Index':
+#             rsi_params = {param['param_name']: param['param_value'] for param in indicator.get('parameters', [])}
+            
+#             overbought = float(rsi_params.get('overbought', 70))
+#             oversold = float(rsi_params.get('oversold', 30))
+#             period = int(rsi_params.get('period', 14))
+
+#             # Fetch historical data for RSI calculation
+#             hdata = fetch_historical_data(symbol, strategy_data['strategy']['exchange'], fromDate, toDate, period)
+
+#             try:
+#                 # Calculate RSI
+#                 rsi = calculate_rsi(hdata)
+#                 current_rsi = rsi.iloc[-1]
+#                 logging.debug(f"current_rsi ({current_rsi}). Checking for selling actions.")
+
+#                 # Check RSI conditions
+#                 if current_rsi > overbought:
+#                     logging.debug(f"RSI is overbought ({current_rsi}). Checking for selling actions.")
+#                     if any(action['action_name'] == 'sell' for action in actions):
+#                         combined_order_flag = True
+
+#                 elif current_rsi < oversold:
+#                     logging.debug(f"RSI is oversold ({current_rsi}). Checking for buying actions.")
+#                     if any(action['action_name'] == 'buy' for action in actions):
+#                         combined_order_flag = True
+
+#             except Exception as e:
+#                 error_message = f"Error calculating RSI for symbol {symbol}: {str(e)}"
+#                 send_error_log(error_message, 'strategy_engine')
+
+#     # Return the combined flag based on all indicators
+#     return combined_order_flag
+
+# def process_indicators(strategy_data, symbol, security_id):
+#     logging.debug(f"Strategy Data: {strategy_data}, Symbol: {symbol}, Security ID: {security_id}")
+
+#     indicators = strategy_data.get('indicators', [])
+#     actions = strategy_data.get('actions', [])
+
+#     combined_order_flag = False
+
+#     for indicator in indicators:
+#         try:
+#             if indicator['indicator_name'] == 'Simple Moving Average':
+#                 parameters = {param['param_name']: int(param['param_value']) for param in strategy_data.get('indicators', [])}
+#                 short_term_period = parameters.get('short_term_period')
+#                 long_term_period = parameters.get('long_term_period')
+
+#                 hdata = fetch_historical_data(symbol, strategy_data['strategy']['exchange'], fromDate, toDate, period=None)
+
+#                 if short_term_period and long_term_period:
+#                     short_term_sma = calculate_sma(hdata, short_term_period)
+#                     long_term_sma = calculate_sma(hdata, long_term_period)
+                    
+#                     if short_term_sma > long_term_sma:
+#                         combined_order_flag = True
+
+#             elif indicator['indicator_name'] == 'Relative Strength Index':
+#                 rsi_params = {param['param_name']: float(param['param_value']) for param in strategy_data.get('indicators', [])}
+#                 # for param in strategy_data_list[0].get('indicators', []):
+#                 logging.debug(f"rsi_params ({rsi_params}). in Relative Strength Index.")
+#                 overbought = rsi_params.get('overbought', 70)
+#                 oversold = rsi_params.get('oversold', 30)
+#                 period = int(rsi_params.get('period', 14))
+
+#                 hdata = fetch_historical_data(symbol, strategy_data['strategy']['exchange'], fromDate, toDate, period)
+
+#                 rsi = calculate_rsi(hdata)
+#                 current_rsi = rsi.iloc[-1]
+#                 logging.debug(f"current_rsi ({current_rsi}). Checking for actions.")
+
+#                 if current_rsi > overbought and any(action['action_name'] == 'sell' for action in actions):
+#                     combined_order_flag = True
+#                 elif current_rsi < oversold and any(action['action_name'] == 'buy' for action in actions):
+#                     combined_order_flag = True
+
+#         except Exception as e:
+#             error_message = f"Error processing {indicator['indicator_name']} for symbol {symbol}: {str(e)}"
+#             send_error_log(error_message, 'strategy_engine')
+
+#     return combined_order_flag
+
+
+def process_indicators(strategy_data, symbol, security_id):
+    logging.debug(f"Strategy Data: {strategy_data}, Symbol: {symbol}, Security ID: {security_id}")
+
+    indicators = strategy_data.get('indicators', [])
+    actions = strategy_data.get('actions', [])
+
+    combined_order_flag = False
+
+    for indicator in indicators:
+        try:
+            if indicator['indicator_name'] == 'Simple Moving Average':
+                # Ensure that only numeric values are converted to int, handle non-numeric values gracefully
+                parameters = {}
+                for param in strategy_data.get('indicators', []):
+                    param_value = param['param_value']
+                    try:
+                        # Attempt to convert the value to an integer, otherwise leave it as a string
+                        param_value = int(param_value)
+                    except ValueError:
+                        # Non-numeric values will remain as they are
+                        pass
+                    parameters[param['param_name']] = param_value
+                
+                short_term_period = parameters.get('short_term_period')
+                long_term_period = parameters.get('long_term_period')
+                logging.debug(f"SMA ({parameters}). in Simple Moving Average.")
+                hdata = fetch_historical_data(symbol, strategy_data['strategy']['exchange'], fromDate, toDate, period=None)
+
+                if short_term_period and long_term_period:
+                    short_term_sma = calculate_sma(hdata, short_term_period)
+                    long_term_sma = calculate_sma(hdata, long_term_period)
+                    
+                    if short_term_sma > long_term_sma:
+                        if any(action['action_name'] == 'buy' for action in actions):
+                            combined_order_flag = True
+
+                logging.debug(f"SMA combined_order_flag  ({combined_order_flag }). in Simple Moving Average.")
+
+
+            elif indicator['indicator_name'] == 'Relative Strength Index':
+                rsi_params = {}
+                for param in strategy_data.get('indicators', []):
+                    param_value = param['param_value']
+                    try:
+                        # Convert to float only when applicable
+                        param_value = float(param_value)
+                    except ValueError:
+                        pass
+                    rsi_params[param['param_name']] = param_value
+
+                logging.debug(f"rsi_params ({rsi_params}). in Relative Strength Index.")
+                overbought = rsi_params.get('overbought', 70)
+                oversold = rsi_params.get('oversold', 30)
+                period = int(rsi_params.get('period', 14))
+
+                hdata = fetch_historical_data(symbol, strategy_data['strategy']['exchange'], fromDate, toDate, period)
+
+                rsi = calculate_rsi(hdata)
+                current_rsi = rsi.iloc[-1]
+                logging.debug(f"current_rsi ({current_rsi}). Checking for actions.")
+
+                if current_rsi > overbought and any(action['action_name'] == 'sell' for action in actions):
+                    combined_order_flag = True
+                elif current_rsi < oversold and any(action['action_name'] == 'buy' for action in actions):
+                    combined_order_flag = True
+                else: 
+                    combined_order_flag = False
+                logging.debug(f"rsi combined_order_flag  ({combined_order_flag }). in Relative Strength Index.")
+        except Exception as e:
+            error_message = f"Error processing {indicator['indicator_name']} for symbol {symbol}: {str(e)}"
+            send_error_log(error_message, 'strategy_engine')
+
+    return combined_order_flag
+

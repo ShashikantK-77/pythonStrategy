@@ -1,0 +1,2 @@
+strategy_id,strategy_name,description,symbol,exchange,category,isactive,status,last_execution_date
+S_41868,strstregy1,strategy 1 with description,LASA,NSE,EQUITY,true,executed,2024-07-12 12:29:51

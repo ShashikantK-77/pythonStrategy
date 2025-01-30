@@ -1,0 +1,40 @@
+import pandas as pd
+from Helper_Files.send_error_log import send_error_log
+
+def calculate_rsi(data, period=14):
+    """
+    Calculate the Relative Strength Index (RSI) for a given dataset.
+    
+    Parameters:
+    - data: A dictionary containing lists of price data (open, high, low, close, volume, start_Time).
+    - period: The period over which to calculate the RSI (default is 14).
+    
+    Returns:
+    - A pandas Series containing the RSI values.
+    """
+    print("------------in rsi functionnn---------------")
+    # Create a pandas DataFrame from the provided dictionary
+    df = pd.DataFrame(data)
+    
+    # Extract the 'close' prices into a pandas Series
+    close_prices = df['close']
+    
+    # Calculate price changes
+    delta = close_prices.diff()
+    
+    # Separate gains and losses
+    gains = delta.where(delta > 0, 0)
+    losses = -delta.where(delta < 0, 0)
+    
+    # Calculate the average gains and losses
+    avg_gain = gains.rolling(window=period, min_periods=1).mean()
+    avg_loss = losses.rolling(window=period, min_periods=1).mean()
+    
+    # Calculate the Relative Strength (RS)
+    rs = avg_gain / avg_loss
+    
+    # Calculate the RSI
+    rsi = 100 - (100 / (1 + rs))
+    print("---------------- rsi returning by function:",rsi)
+    send_error_log("rsi returning by function:",rsi)
+    return rsi

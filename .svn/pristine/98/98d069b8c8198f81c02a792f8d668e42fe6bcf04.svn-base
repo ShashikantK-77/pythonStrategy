@@ -1,0 +1,127 @@
+import csv
+import requests
+import time
+from Helper_Files.strategy_combiner import combine_data, update_strategy_status
+from Helper_Files.calculate_sma import calculate_sma
+
+def read_csv(filename):
+    with open(filename, 'r') as file:
+        reader = csv.DictReader(file)
+        return list(reader)
+
+def fetch_historical_data(symbol, fromDate, toDate):
+    url = "https://api.dhan.co/charts/historical"
+    headers = {
+        "Content-Type": "application/json",
+        "access-token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzE4NTEzMTk4LCJ0b2tlbkNvbnN1bWVyVHlwZSI6IlNFTEYiLCJ3ZWJob29rVXJsIjoiIiwiZGhhbkNsaWVudElkIjoiMTEwMTM0Mzg3MSJ9.uQqLPQyPbWIrPaC_5Yf8V7HblP96yFFwlBKSlS2lGSFcaEeD3cIT3wxbBlwliQbzKSxidvYwfvSvz6nV1kdamQ"
+    }
+    payload = {
+        "symbol": symbol,
+        "exchangeSegment": "NSE_EQ",
+        "instrument": "EQUITY",
+        "expiryCode": 0,
+        "fromDate": fromDate,
+        "toDate": toDate
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    data = response.json()
+
+    if "error" in data:
+        print("Error:", data["error"])
+        return None
+    else:
+        return data
+
+
+
+def get_latest_ltp():
+    url = "http://localhost:3001/api/getltp"
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        if data.get("Type") == "Ticker Data":
+            return float(data.get("LTP", 0))
+    print("Error: Unable to fetch latest LTP")
+    return None
+
+def place_order(actions, strategy_id):
+    print("Placing order...")
+    for action in actions:
+        print("Performing action:", action['action_name'])
+    print("Order placed successfully.")
+    update_strategy_status(strategy_id)
+
+def main():
+    strategy_data = read_csv('Input_Files/strategy.csv')
+    if not strategy_data:
+        print("Error: No strategy data found.")
+        return
+
+    symbol = strategy_data[0].get('symbol')
+    toDate = "2024-05-16"
+    fromDate = "2023-05-12"
+
+    # Combine strategies
+    strategy_data_list = combine_data('Input_Files/strategy.csv', 'Input_Files/indicators.csv', 'Input_Files/indicator_parameters.csv', 'Input_Files/actions.csv')
+
+    while True:
+        data = fetch_historical_data(symbol, fromDate, toDate)
+        latest_ltp = get_latest_ltp()
+
+        if data and latest_ltp is not None:
+            # Check if any strategy is in "waiting" status
+            waiting_strategy_exists = any(strategy_data['strategy']['status'] == 'waiting' for strategy_data in strategy_data_list)
+            
+            if not waiting_strategy_exists:
+                print("Waiting for new strategy")
+                time.sleep(1)  # Wait for 1 second before checking again
+                continue  # Continue to the next iteration
+
+            # Flag to check if any strategy was executed
+            strategy_executed = False
+
+            for strategy_data in strategy_data_list:
+                if strategy_data['strategy']['status'] == 'executed':
+                    print(f"Skipping strategy '{strategy_data['strategy']['strategy_name']}' because it's already executed")
+                    continue  # Skip this strategy and move to the next one
+
+                short_term_period = None
+                long_term_period = None
+
+                for indicator in strategy_data['indicators']:
+                    if indicator['indicator_name'] == 'Simple Moving Average':
+                        parameters = indicator['parameters']
+                        for param in parameters:
+                            if param['parameter_name'] == 'short_term_period':
+                                short_term_period = int(param['parameter_value'])
+                            elif param['parameter_name'] == 'long_term_period':
+                                long_term_period = int(param['parameter_value'])
+
+                short_term_sma = calculate_sma(data, short_term_period)
+                long_term_sma = calculate_sma(data, long_term_period)
+
+                print("Strategy:", strategy_data['strategy']['strategy_name'])
+                print(f"Short-term SMA ({short_term_period}):", short_term_sma)
+                print(f"Long-term SMA ({long_term_period}):", long_term_sma)
+                print(f"LTP: {latest_ltp}")
+
+                if short_term_sma is not None and long_term_sma is not None:
+                    if (short_term_sma - long_term_sma) >= 15 and latest_ltp >= short_term_sma:
+                        print("Buy Signal Generated")
+                        place_order(strategy_data['actions'], strategy_data['strategy']['strategy_id'])
+                        # Update strategy status
+                        update_strategy_status(strategy_data['strategy']['strategy_id'])
+                        # Re-combine strategy data to reflect status change
+                        strategy_data_list = combine_data('Input_Files/strategy.csv', 'Input_Files/indicators.csv', 'Input_Files/indicator_parameters.csv', 'Input_Files/actions.csv')
+                        strategy_executed = True
+                        break  # Exit the loop after status change
+                    else:
+                        print("Buy Signal Not Generated")
+
+            # If no strategy was executed, wait for 1 second before checking again
+            if not strategy_executed:
+                time.sleep(1)
+
+if __name__ == "__main__":
+    main()

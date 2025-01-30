@@ -1,0 +1,367 @@
+# import time
+# import requests
+# from dhanhq import dhanhq
+# from Helper_Files.send_error_log import send_error_log
+# import logging
+
+# logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# client_id = "1101343871"
+# access_token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzI1NjEzMzUyLCJ0b2tlbkNvbnN1bWVyVHlwZSI6IlNFTEYiLCJ3ZWJob29rVXJsIjoiIiwiZGhhbkNsaWVudElkIjoiMTEwMTM0Mzg3MSJ9.Hm-KSGOhEhfveRUQ25U_hA9nQjrPDpV7UX6WJGaznYV7lRXaf-txSVPqxAqqLvMUJGliA6FfNAM0Fgdi7Dws3Q'
+# dhan = dhanhq(client_id, access_token)
+
+# BASE_URL = "http://localhost:5000/python"
+
+# def get_orders_from_api(endpoint):
+#     """
+#     Fetches orders from the API endpoint provided.
+    
+#     Args:
+#         endpoint (str): The API endpoint to fetch orders from.
+    
+#     Returns:
+#         list: A list of orders in JSON format.
+#     """
+#     try:
+#         logging.debug(f"Fetching orders from API endpoint: {BASE_URL}{endpoint}")
+#         response = requests.get(f"{BASE_URL}{endpoint}")
+#         response.raise_for_status()
+#         orders = response.json().get('orders', [])
+#         # logging.debug(f"Orders fetched successfully: {orders}")
+#         return orders
+#     except requests.RequestException as e:
+#         error_message = f"Failed to get orders from API: {str(e)}"
+#         send_error_log(error_message, 'get_orders_from_api')
+#         logging.error(error_message)
+#         return []
+
+# def update_order_in_api(order_id, updated_data):
+#     """
+#     Updates the specified order in the API with the provided data.
+    
+#     Args:
+#         order_id (str): The ID of the order to update.
+#         updated_data (dict): The data to update the order with.
+    
+#     Returns:
+#         dict: The response from the API.
+#     """
+#     try:
+#         logging.debug(f"Updating order {order_id} with data: {updated_data}")
+#         response = requests.put(f"{BASE_URL}/orders/{order_id}", json=updated_data)
+#         response.raise_for_status()
+#         result = response.json()
+#         logging.debug(f"Order {order_id} updated successfully: {result}")
+#         return result
+#     except requests.RequestException as e:
+#         error_message = f"Failed to update order {order_id} in API: {str(e)}"
+#         send_error_log(error_message, 'update_order_in_api')
+#         logging.error(error_message)
+
+# def get_pending_orders():
+#     """
+#     Fetches all pending orders from the API.
+    
+#     Returns:
+#         list: A list of pending orders in JSON format.
+#     """
+#     return get_orders_from_api('/orders/pending')
+
+# def get_entry_orders():
+#     """
+#     Fetches all entry orders from the API.
+    
+#     Returns:
+#         list: A list of entry orders in JSON format.
+#     """
+#     return get_orders_from_api('/orders/entry')
+
+# def compare_and_update_orders(orders, all_orders):
+#     """
+#     Compares the current orders with the latest orders from the broker.
+#     Updates the order status and quantity if there are discrepancies.
+    
+#     Args:
+#         orders (list): The list of current orders.
+#         all_orders (list): The list of all orders fetched from the broker.
+    
+#     Returns:
+#         list: The updated list of orders.
+#     """
+#     updated_orders = []
+#     order_lookup = {order['orderId']: order for order in all_orders}
+#     logging.debug("Comparing and updating orders...")
+
+#     for order in orders:
+#         broker_order_id = order.get('broker_order_id')
+#         if broker_order_id and broker_order_id in order_lookup:
+#             all_order = order_lookup[broker_order_id]
+#             new_order_status = all_order.get('orderStatus')
+#             if new_order_status and order['orderStatus'] != new_order_status:
+#                 update_order_in_api(order['order_id'], {'orderStatus': new_order_status})
+#                 order['orderStatus'] = new_order_status
+#                 logging.debug(f"Order status updated: {order['order_id']} to {new_order_status}")
+
+#             if order['OrderCategory'].lower() == 'entry':
+#                 new_quantity = all_order.get('quantity')
+#                 if new_quantity and order['quantity'] != str(new_quantity):
+#                     update_order_in_api(order['order_id'], {'quantity': new_quantity})
+#                     order['quantity'] = str(new_quantity)
+#                     logging.debug(f"Order quantity updated: {order['order_id']} to {new_quantity}")
+
+#         updated_orders.append(order)
+
+#     logging.debug(f"Orders after comparison: {updated_orders}")
+#     return updated_orders
+
+# def check_and_update_entry_orders(entry_orders, all_orders):
+#     """
+#     Checks for discrepancies in entry orders and updates their quantities if needed.
+    
+#     Args:
+#         entry_orders (list): The list of entry orders.
+#         all_orders (list): The list of all orders fetched from the broker.
+#     """
+#     changed_orders = []
+#     logging.debug("Checking and updating entry orders...")
+
+#     for entry_order in entry_orders:
+#         broker_order_id = entry_order.get('BrokerOrderID')
+#         for all_order in all_orders:
+#             if all_order.get('orderId') == broker_order_id:
+#                 new_quantity = all_order.get('quantity')
+#                 if new_quantity and entry_order['quantity'] != str(new_quantity):
+#                     update_order_in_api(entry_order['order_id'], {'quantity': new_quantity})
+#                     logging.debug(f"Quantity changed for Entry order {entry_order['order_id']}: old quantity = {entry_order['quantity']}, new quantity = {new_quantity}")
+#                     entry_order['quantity'] = str(new_quantity)
+#                     changed_orders.append(entry_order)
+
+#     if changed_orders:
+#         logging.debug(f"Modified Entry Orders: {changed_orders}")
+
+# def check_pending_orders():
+#     """
+#     Continuously checks for pending orders, compares them with the latest orders from the broker,
+#     updates order statuses and quantities as needed, and manages order status.
+#     """
+#     logging.debug("Starting check_pending_orders loop...")
+#     while True:
+#         orders = get_orders_from_api('/get-all-orders')
+#         if not orders:
+#             logging.debug("No orders found")
+#             time.sleep(10)
+#             continue
+
+#         pending_orders = get_pending_orders()
+#         entry_orders = get_entry_orders()
+
+#         if pending_orders:
+#             response = dhan.get_order_list()
+#             if response['status'] == 'success':
+#                 all_orders = response['data']
+#                 # logging.debug(f"Fetched orders from broker: {all_orders}")
+
+#                 # updated_orders = compare_and_update_orders(orders, all_orders)
+#                 # check_and_update_entry_orders(entry_orders, all_orders)
+
+#                 for order in pending_orders:
+#                     if order['orderStatus'].lower() != 'pending':
+#                         update_order_in_api(order['order_id'], {'status': 'waiting'})
+#                         logging.debug(f"Order status updated to 'waiting': {order['order_id']}")
+
+#         else:
+#             logging.debug("No pending orders found")
+        
+#         time.sleep(10)
+
+# # Uncomment to start checking pending orders
+# # check_pending_orders()
+
+
+
+
+
+
+import time
+import requests
+from dhanhq import dhanhq
+from Helper_Files.send_error_log import send_error_log
+from Helper_Files.save_executed_order import map_tradedupe_status
+
+import logging
+
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+client_id = "1101343871"
+access_token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzI4ODAxODg5LCJ0b2tlbkNvbnN1bWVyVHlwZSI6IlNFTEYiLCJ3ZWJob29rVXJsIjoiIiwiZGhhbkNsaWVudElkIjoiMTEwMTM0Mzg3MSJ9.Rcr4VMpNakJvYB0ThB84v0DOaxiMRIZZoeqol8QAGEEgvPJJ3SpBsZVIyAcJvscOO3HPkx1fI0r6uZwV99V08g'
+dhan = dhanhq(client_id, access_token)
+
+BASE_URL = "http://localhost:5000/python"
+
+def get_orders_from_api(endpoint):
+    """
+    Fetches orders from the API endpoint provided.
+    
+    Args:
+        endpoint (str): The API endpoint to fetch orders from.
+    
+    Returns:
+        list: A list of orders in JSON format.
+    """
+    try:
+        logging.debug(f"Fetching orders from API endpoint: {BASE_URL}{endpoint}")
+        response = requests.get(f"{BASE_URL}{endpoint}")
+        response.raise_for_status()
+        orders = response.json().get('orders', [])
+        # logging.debug(f"Orders fetched successfully: {orders}")
+        return orders
+    except requests.RequestException as e:
+        error_message = f"Failed to get orders from API: {str(e)}"
+        send_error_log(error_message, 'get_orders_from_api')
+        logging.error(error_message)
+        return []
+
+def update_order_in_api(order_id, updated_data):
+    """
+    Updates the specified order in the API with the provided data.
+    
+    Args:
+        order_id (str): The ID of the order to update.
+        updated_data (dict): The data to update the order with.
+    
+    Returns:
+        dict: The response from the API.
+    """
+    try:
+        logging.debug(f"Updating order before {order_id} with data: {updated_data}")
+        
+        # Map the status before sending it to the API
+        mapped_status = map_tradedupe_status('Dhan', updated_data.get('order_status', ''))
+        logging.debug(f"Mapped status: {mapped_status}")
+        
+        updated_data['order_status'] = mapped_status
+        logging.debug(f"Updating order after map_tradedupe_status {order_id} with data: {updated_data}")
+        
+        response = requests.put(f"{BASE_URL}/orders/{order_id}", json=updated_data)
+        response.raise_for_status()
+        
+        result = response.json()
+        logging.debug(f"Order {order_id} updated successfully: {result}")
+        return result
+    except requests.RequestException as e:
+        error_message = f"Failed to update order {order_id} in API: {str(e)}"
+        send_error_log(error_message, 'update_order_in_api')
+        logging.error(error_message)
+
+# def check_pending_orders():
+#     """
+#     Continuously checks for pending orders, compares them with the latest orders from the broker,
+#     updates order statuses and quantities as needed, and manages order status.
+#     """
+#     logging.debug("Starting check_pending_orders loop...")
+#     while True:
+#         # Fetch pending orders from API
+#         # pending_orders = get_orders_from_api('/orders/pending')
+#         pending_orders = get_orders_from_api('/get-all-orders')
+        
+#         if not pending_orders:
+#             logging.debug("No pending orders found")
+#             time.sleep(10)
+#             continue
+
+#         # Fetch all orders from broker
+#         response = dhan.get_order_list()
+#         if response['status'] == 'success':
+#             all_orders = response['data']
+#             # logging.debug(f"Fetched orders from broker: {all_orders}")
+
+#             # Create a lookup dictionary for easy access
+#             order_lookup = {order['orderId']: order for order in all_orders}
+
+#             # Process pending orders
+#             for order in pending_orders:
+#                 broker_order_id = order.get('broker_order_id')
+#                 logging.debug(f"broker_order_id of pending order: {broker_order_id} ")
+#                 if broker_order_id and broker_order_id in order_lookup:
+#                     broker_order = order_lookup[broker_order_id]
+#                     new_order_status = broker_order.get('orderStatus')
+#                     logging.debug(f"new_order_status broker_order_id of pending order: {new_order_status} ")
+#                     if new_order_status and order['order_status'] != new_order_status:
+#                         update_order_in_api(order['order_id'], {'order_status': new_order_status})
+#                         order['orderStatus'] = new_order_status
+#                         logging.debug(f"Order status updated: {order['order_id']} to {new_order_status}")
+
+#                     if order['OrderCategory'].lower() == 'entry':
+#                         new_quantity = broker_order.get('quantity')
+#                         if new_quantity and order['quantity'] != str(new_quantity):
+#                             update_order_in_api(order['order_id'], {'quantity': new_quantity})
+#                             order['quantity'] = str(new_quantity)
+#                             logging.debug(f"Order quantity updated: {order['order_id']} to {new_quantity}")
+
+#         else:
+#             logging.debug("Failed to fetch orders from broker")
+
+#         # Sleep before next check
+#         time.sleep(10)
+
+
+def check_pending_orders():
+    """
+    Continuously checks all orders from your system, compares them with the latest orders from the broker,
+    updates order statuses and quantities as needed, and synchronizes them with the broker's data.
+    """
+    logging.debug("Starting check_pending_orders loop...")
+
+    while True:
+        # Fetch all orders from API (this includes both pending and completed orders)
+        orders_from_db = get_orders_from_api('/get-all-orders')
+
+        if not orders_from_db:
+            logging.debug("No orders found in the system.")
+            time.sleep(10)
+            continue
+
+        # Fetch all orders from the broker
+        response = dhan.get_order_list()
+
+        if response['status'] == 'success':
+            broker_orders = response['data']
+
+            # Create a lookup dictionary for broker orders using 'orderId'
+            broker_order_lookup = {order['orderId']: order for order in broker_orders}
+
+            # Process all orders from the system (database orders)
+            for order in orders_from_db:
+                broker_order_id = order.get('broker_order_id')
+                
+                # Check if the order exists in the broker's order list
+                if broker_order_id and broker_order_id in broker_order_lookup:
+                    broker_order = broker_order_lookup[broker_order_id]
+
+                    # Get the current status and quantity from the broker
+                    broker_order_status = broker_order.get('orderStatus')
+                    broker_order_quantity = broker_order.get('quantity')
+
+                    logging.debug(f"Comparing system order {order['order_id']} with broker order {broker_order_id}")
+
+                    # Update order status if it differs from the broker's status
+                    if broker_order_status and order['order_status'] != broker_order_status:
+                        update_order_in_api(order['order_id'], {'order_status': broker_order_status})
+                        order['order_status'] = broker_order_status
+                        logging.debug(f"Order status updated: {order['order_id']} to {broker_order_status}")
+
+                    # Update quantity if the broker's quantity is different (for 'entry' orders)
+                    if order['OrderCategory'].lower() == 'entry' and broker_order_quantity:
+                        if order['quantity'] != str(broker_order_quantity):
+                            update_order_in_api(order['order_id'], {'quantity': broker_order_quantity})
+                            order['quantity'] = str(broker_order_quantity)
+                            logging.debug(f"Order quantity updated: {order['order_id']} to {broker_order_quantity}")
+
+                else:
+                    logging.debug(f"No matching broker order found for system order: {order['order_id']}")
+
+        else:
+            logging.debug("Failed to fetch orders from broker.")
+
+        # Sleep before the next check
+        time.sleep(10)

@@ -1,0 +1,16 @@
+status,remarks,data
+failure,"{'error_code': 'RS-9005', 'message': None}",
+failure,"{'error_code': 'RS-9005', 'message': None}",
+failure,"{'error_code': 'RS-9005', 'message': None}",
+failure,"{'error_code': 'RS-9005', 'message': None}",
+failure,"{'error_code': 'RS-9005', 'message': 'JSON parse error: Cannot deserialize value of type `float` from Array value (token `JsonToken.START_ARRAY`); nested exception is com.fasterxml.jackson.databind.exc.MismatchedInputException: Cannot deserialize value of type `float` from Array value (token `JsonToken.START_ARRAY`)\n at [Source: (PushbackInputStream); line: 1, column: 267] (through reference chain: co.dhan.api.model.OrderRequest[""boProfitValue""])'}",
+failure,"float() argument must be a string or a real number, not 'tuple'",
+failure,"float() argument must be a string or a real number, not 'tuple'",
+failure,"int() argument must be a string, a bytes-like object or a real number, not 'tuple'",
+failure,"{'error_code': 'RS-9005', 'message': None}",
+failure,"{'error_code': 'RS-9005', 'message': None}",
+failure,"{'error_code': 'RS-9005', 'message': None}",
+failure,"{'error_code': 'RS-9005', 'message': 'The token was expected to have 3 parts, but got 1.'}",
+failure,"{'error_code': 'RS-9005', 'message': 'Transactions Fails.'}",
+success,,"{'orderId': '3124053039926', 'orderStatus': 'TRANSIT'}"
+success,,"{'orderId': '2124053130886', 'orderStatus': 'TRANSIT'}"

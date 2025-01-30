@@ -1,0 +1,11 @@
+import csv
+def read_security_ids(file_path):
+    security_ids_map = {}
+    with open(file_path, newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            symbol = row['Symbol']
+            exchange_id = int(row['Exchange ID'])
+            security_id = int(row['Security ID'])
+            security_ids_map[symbol] = (exchange_id, security_id)
+    return security_ids_map

@@ -1,0 +1,4 @@
+strategy_id,order_id,MainOrderid,OrderCategory,BrokerClientID,BrokerOrderID,correlationId,orderStatus,transactionType,exchangeSegment,productType,orderType,validity,tradingSymbol,securityId,quantity,disclosedQuantity,ExecutionPrice,triggerPrice,IsAMO,boProfitValue,boStopLossValue,legName,createTime,updateTime,exchangeTime,drvExpiryDate,drvOptionType,drvStrikePrice,omsErrorCode,omsErrorDescription,filled_qty,algoId
+S_41868,15359,,Entry,12345,6756890,abc123,success,buy,NSE,MIS,limit,DAY,AAPL,111,1,0,150,0,FALSE,0,0,,2024-06-05T12:34:56,2024-06-05T12:35:56,2024-06-05T12:35:56,,,0,,,10,
+S_41868,25759,15359,Target,12345,67896590,abc123,pending,sell,NSE,MIS,limit,DAY,AAPL,111,1,0,150,0,FALSE,0,0,,2024-06-05T12:34:56,2024-06-05T12:35:56,2024-06-05T12:35:56,,,0,,,10,
+S_41868,45656,15359,Stop_loss,12345,67756890,abc123,success,sell,NSE,MIS,limit,DAY,AAPL,111,1,0,150,0,FALSE,0,0,,2024-06-05T12:34:56,2024-06-05T12:35:56,2024-06-05T12:35:56,,,0,,,10,

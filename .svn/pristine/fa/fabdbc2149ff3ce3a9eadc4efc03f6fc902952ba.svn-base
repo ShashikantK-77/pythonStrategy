@@ -1,0 +1,21 @@
+
+
+from dhanhq import dhanhq
+from Helper_Files.save_executed_order import save_executed_order
+
+from Helper_Files.Risk_management import place_stop_loss_order,place_book_profit_order,cancel_pending_orders,check_pending_orders
+
+# Initialize DhanHQ client
+client_id = "1101343871"
+access_token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzI1NjEzMzUyLCJ0b2tlbkNvbnN1bWVyVHlwZSI6IlNFTEYiLCJ3ZWJob29rVXJsIjoiIiwiZGhhbkNsaWVudElkIjoiMTEwMTM0Mzg3MSJ9.Hm-KSGOhEhfveRUQ25U_hA9nQjrPDpV7UX6WJGaznYV7lRXaf-txSVPqxAqqLvMUJGliA6FfNAM0Fgdi7Dws3Q'
+
+dhan = dhanhq(client_id, access_token)
+
+
+
+strategy_id = 58
+order_id = 4124080842566
+order_details = dhan.get_order_by_id(order_id)
+
+print("order_details:",order_details)
+# save_executed_order(order_details, strategy_id, ordertype="Entry")

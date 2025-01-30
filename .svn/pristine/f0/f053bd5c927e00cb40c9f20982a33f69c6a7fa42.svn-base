@@ -1,0 +1,52 @@
+import requests
+from Helper_Files.send_error_log import send_error_log
+import logging
+from datetime import datetime, timedelta
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+exchange_segment_map = {
+    'NSE': 'NSE_EQ',
+    'BSE': 'BSE_EQ'
+    }
+def fetch_historical_data(symbol,exchange, fromDate, toDate,period):
+    logging.debug(f"period in fetch_historical_data...: {period}")
+    # Define a mapping for exchanges to their respective exchangeSegment
+    
+    # Get the correct exchangeSegment using the mapping, defaulting to 'NSE_EQ' if not found
+    exchange_segment = exchange_segment_map.get(exchange, 'NSE_EQ')
+
+    # If period is provided, calculate fromDate and toDate
+    if period is not None:
+        # Set toDate as today's date
+        period = int(period)
+        toDate = datetime.today().strftime('%Y-%m-%d')
+        
+        # Calculate fromDate as toDate - period days
+        fromDate = (datetime.today() - timedelta(days=period)).strftime('%Y-%m-%d')
+    
+    logging.debug(f"fromDate: {fromDate}, toDate: {toDate}")
+
+    logging.debug(f"fetch_historical_data in exchange_segment...: {exchange_segment}")
+    url = "https://api.dhan.co/charts/historical"
+    headers = {
+        "Content-Type": "application/json",
+        "access-token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzI4ODAxODg5LCJ0b2tlbkNvbnN1bWVyVHlwZSI6IlNFTEYiLCJ3ZWJob29rVXJsIjoiIiwiZGhhbkNsaWVudElkIjoiMTEwMTM0Mzg3MSJ9.Rcr4VMpNakJvYB0ThB84v0DOaxiMRIZZoeqol8QAGEEgvPJJ3SpBsZVIyAcJvscOO3HPkx1fI0r6uZwV99V08g"
+    }
+    payload = {
+        "symbol": symbol,
+        "exchangeSegment": exchange_segment,
+        "instrument": "EQUITY",
+        "expiryCode": 0,
+        "fromDate": fromDate,
+        "toDate": toDate
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    data = response.json()
+
+    if "error" in data:
+        print("Error:", data["error"])
+        send_error_log(data["error"],"fetch_historical_data")
+        return None
+    else:
+        # print(data)  # Print the data to understand its structure
+        return data

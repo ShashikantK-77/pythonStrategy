@@ -1,0 +1,2 @@
+action_id,strategy_id,action_name,action_type,BracketPriceAt,BracketStopLoss,BracketTarget,TriggerPriceAt,TriggerTriggerPrice,LimitPrice,CoverPrice,CoverStopLoss,CoverTriggerPrice,StartTime,EndTime,executionCount,operationCount
+1,S_41868,buy,market,N/A,0.3,N/A,N/A,0.2,N/A,N/A,N/A,N/A,09:00,18:30,1,140
