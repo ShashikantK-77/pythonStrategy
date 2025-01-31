@@ -18,10 +18,12 @@
 
 
 import requests
+from constants import BASE_URL
 
 def send_error_log(error_message, file_name):
     """ Send error log to Node.js server """
-    url = 'http://localhost:5000/python/saveError'
+    # url = 'http://localhost:5000/python/saveError'
+    url = f"{BASE_URL}python/saveError"  # Use the global base URL
     data = {
         'error_message': error_message,  # updated to match server expectations
         'file_name': file_name  # updated to match server expectations

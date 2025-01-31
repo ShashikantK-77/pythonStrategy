@@ -5,6 +5,7 @@ import random
 import requests
 from Helper_Files.send_error_log import send_error_log
 from Helper_Files.get_latest_ltp import get_latest_ltp
+from constants import BASE_URL
 import logging
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -59,7 +60,8 @@ def save_executed_order(order_details, strategy_id,price, MainOrderid=None, stop
     elif ordertype == "Target" and book_profit_price is not None:
         execution_price = book_profit_price
     
-    api_url = 'http://localhost:5000/python/save-executed-order'
+    # api_url = 'http://localhost:5000/python/save-executed-order'
+    api_url = f"{BASE_URL}python/save-executed-order"  # Use the global base URL
     
     # Create a new object with values from order_details
     new_order_details = OrderedDict()

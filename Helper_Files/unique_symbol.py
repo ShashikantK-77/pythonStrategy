@@ -1,46 +1,17 @@
-# from Helper_Files.fetch_data import fetch_data
 
-# def get_unique_symbols(filename):
-#     api_url = "http://localhost:5000/python/activestrategy"
-#     api_data = fetch_data(api_url)
-#     strategy_data = read_csv(filename)
-    
-#     symbols_info = {}  # Dictionary to store symbols along with their exchanges and categories
-    
-#     for row in strategy_data:
-#         symbol = row['symbol']
-#         exchange = row['exchange']
-#         category = row['category']
-        
-#         # If symbol already exists, update exchanges and categories
-#         if symbol in symbols_info:
-#             symbols_info[symbol]['exchanges'].add(exchange)
-#             symbols_info[symbol]['categories'].add(category)
-#         else:
-#             # If symbol doesn't exist, create a new entry
-#             symbols_info[symbol] = {'exchanges': {exchange}, 'categories': {category}}
-    
-#     # Convert the dictionary to a list of dictionaries
-#     unique_symbols_list = []
-#     for symbol, info in symbols_info.items():
-#         unique_symbols_list.append({
-#             'symbol': symbol,
-#             'exchanges': list(info['exchanges']),
-#             'categories': list(info['categories'])
-#         })
-    
-#     return unique_symbols_list
 
 import csv
 from Helper_Files.fetch_data import fetch_data
 import logging
+from constants import BASE_URL  # Import the global base URL
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def get_unique_symbols():
     # logging.debug(f"in get_unique_symbols")
-    api_url = 'http://localhost:5000/python/get_unique_symbols'
+    # api_url = 'http://localhost:5000/python/get_unique_symbols'
+    api_url = f"{BASE_URL}python/get_unique_symbols"  # Use the global base URL
     api_data = fetch_data(api_url)
     
     if not api_data or not api_data.get("is_success"):

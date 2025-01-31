@@ -2,3 +2,5 @@ access_token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5
 client_id = "1101343871"
 
 # access_token = 'eyJMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzM3NTI0NTg5LCJ0b2tlbkNvbnN1bWVyVHlwZSI6IlNFTEYiLCJ3ZWJob29rVXJsIjoiIiwiZGhhbkNsaWVudElkIjoiMTEwMTM0Mzg3MSJ9.XMf6u44KG_CdM36TG1ZEY4RQ981eCUknDLPQUrG2GcU8WX0xiAKqLaH5JxSIjaYXmXr7a49kQI3NMr0U3-09Uw'
+
+BASE_URL = "http://localhost:5000/"

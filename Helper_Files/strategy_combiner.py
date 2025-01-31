@@ -4,7 +4,7 @@ from dhanhq import dhanhq
 import copy
 from Helper_Files.fetch_data import fetch_data
 from Helper_Files.send_error_log import send_error_log
-from constants import access_token,client_id
+from constants import access_token,client_id,BASE_URL
 
 import requests
 
@@ -22,7 +22,9 @@ def read_csv(filename):
 
 def combine_data():
     # Fetch data from the API endpoint
-    api_url = "http://localhost:5000/python/activestrategy"
+    # api_url = "http://localhost:5000/python/activestrategy"
+
+    api_url = f"{BASE_URL}python/activestrategy"  # Use the global base URL
     api_data = fetch_data(api_url)
     
     # Define a mapping for indicator IDs to names
@@ -81,8 +83,9 @@ def print_combined_data(combined_data_list):
 
 def update_strategy_status(strategy_id):
     # Define the API endpoint URL
-    api_url = 'http://localhost:5000/python/update-execution-status'
-    
+    # api_url = 'http://localhost:5000/python/update-execution-status'
+    api_url = f"{BASE_URL}python/update-execution-status"  # Use the global base URL
+
     # Define the payload with strategy_id
     payload = {
         'strategy_id': strategy_id
@@ -109,8 +112,8 @@ def update_strategy_status(strategy_id):
 
 def increment_operation_count(strategy_id):
     # Define the API endpoint
-    url = f'http://localhost:5000/python/increment-operation-count/{strategy_id}'
-
+    # url = f'http://localhost:5000/python/increment-operation-count/{strategy_id}'
+    url = f"{BASE_URL}python/increment-operation-count/{strategy_id}"  # Use the global base URL
     try:
         # Make the PUT request to the API
         response = requests.put(url)
@@ -129,99 +132,6 @@ def increment_operation_count(strategy_id):
 
 
 
-# def check_pending_orders():
-#     file_path = 'orders.csv'
-#     updated_orders = []
-
-#     try:
-#         # Read the current orders from the CSV file
-#         with open(file_path, mode='r') as file:
-#             csv_reader = csv.DictReader(file)
-#             fieldnames = csv_reader.fieldnames
-#             orders = list(csv_reader)
-
-#         # Get the list of all orders from dhan
-#         response = dhan.get_order_list()
-#         order_list = response['data']
-#         print("response in check_pending_orders:", response)
-
-#         # Create a dictionary for quick lookup of order details by orderId
-#         order_lookup = {order['orderId']: order for order in order_list}
-
-#         # Process orders
-#         for row in orders:
-#             order_id = row['BrokerOrderID']
-#             if row['orderStatus'] == 'PENDING' and order_id in order_lookup:
-#                 print(f"Order ID {order_id} for strategy {row['strategy_id']} is pending.")
-#                 new_order_status = order_lookup[order_id]['orderStatus']
-
-#                 if row['orderStatus'] != new_order_status:
-#                     print(f"Updating order status for order ID {order_id} from {row['orderStatus']} to {new_order_status}")
-#                     updated_row = copy.deepcopy(row)
-#                     updated_row['orderStatus'] = new_order_status
-#                     updated_orders.append(updated_row)
-#                 else:
-#                     updated_orders.append(row)
-#             else:
-#                 updated_orders.append(row)
-
-#         # Write the updated orders back to the CSV file
-#         with open(file_path, mode='w', newline='') as file:
-#             csv_writer = csv.DictWriter(file, fieldnames=fieldnames)
-#             csv_writer.writeheader()
-#             csv_writer.writerows(updated_orders)
-
-#     except FileNotFoundError:
-#         print(f"The file {file_path} does not exist.")
-#     except csv.Error as e:
-#         print(f"Error processing the CSV file: {e}")
-
-#     file_path = 'orders.csv'
-#     updated_orders = []
-
-#     try:
-#         # Read the current orders from the CSV file
-#         with open(file_path, mode='r') as file:
-#             csv_reader = csv.DictReader(file)
-#             fieldnames = csv_reader.fieldnames
-#             orders = list(csv_reader)
-
-#         # Get the list of all orders from dhan
-#         response = dhan.get_order_list()
-#         order_list = response['data']
-#         print("response in check_pending_orders:", response)
-
-#         # Create a dictionary for quick lookup of order details by orderId
-#         order_lookup = {order['orderId']: order for order in order_list}
-
-#         # Process orders
-#         for row in orders:
-#             order_id = row['BrokerOrderID']
-#             if row['orderStatus'] == 'PENDING' and order_id in order_lookup:
-#                 print(f"Order ID {order_id} for strategy {row['strategy_id']} is pending.")
-
-#                 # Compare and update only the changed fields
-#                 updated_row = copy.deepcopy(row)
-#                 for key, value in order_lookup[order_id].items():
-#                     if key in row and row[key] != str(value):
-#                         updated_row[key] = str(value)
-                
-#                 updated_orders.append(updated_row)
-#             else:
-#                 updated_orders.append(row)
-
-#         # Write the updated orders back to the CSV file
-#         with open(file_path, mode='w', newline='') as file:
-#             csv_writer = csv.DictWriter(file, fieldnames=fieldnames)
-#             csv_writer.writeheader()
-#             csv_writer.writerows(updated_orders)
-
-#     except FileNotFoundError:
-#         print(f"The file {file_path} does not exist.")
-#     except csv.Error as e:
-#         print(f"Error processing the CSV file: {e}")
-
-
 
 
 
@@ -229,8 +139,11 @@ def increment_operation_count(strategy_id):
 
 def check_pending_orders():
     # Define the API endpoints
-    get_orders_api = 'http://localhost:5000/python/get-all-orders'
-    update_order_api = 'http://your-api-server/update-order-status'
+    # get_orders_api = 'http://localhost:5000/python/get-all-orders'
+    # update_order_api = 'http://localhost:5000/update-order-status'
+
+    get_orders_api = f"{BASE_URL}python/get-all-orders"  # Use the global base URL
+    update_order_api = f"{BASE_URL}python/update-order-status"  # Use the global base URL
 
     try:
         # Fetch orders from your database via API

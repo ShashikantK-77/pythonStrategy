@@ -70,6 +70,7 @@ import requests
 from Helper_Files.send_error_log import send_error_log
 import os
 from pathlib import Path
+from constants import BASE_URL  # Import the global base URL
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -77,7 +78,8 @@ def search_security_ids(symbols):
     logging.debug("Starting search_security_ids")
     logging.debug(f"Symbols in search_security_ids: {symbols}")
     
-    api_url = 'http://localhost:5000/python/processSymbols'  # URL of your Node.js API
+    # api_url = 'http://localhost:5000/python/processSymbols'  # URL of your Node.js API
+    api_url = f"{BASE_URL}python/processSymbols"  # Use the global base URL
     headers = {'Content-Type': 'application/json'}
     
     # Convert symbols list to JSON format

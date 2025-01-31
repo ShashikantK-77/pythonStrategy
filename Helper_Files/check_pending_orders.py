@@ -9,7 +9,7 @@ import requests
 from dhanhq import dhanhq
 from Helper_Files.send_error_log import send_error_log
 from Helper_Files.save_executed_order import map_tradedupe_status
-from constants import access_token,client_id
+from constants import access_token,client_id,BASE_URL
 
 
 # import time
@@ -27,7 +27,10 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 
 dhan = dhanhq(client_id, access_token)
 
-BASE_URL = "http://localhost:5000/python"
+# BASE_URL = "http://localhost:5000/python"
+
+# BASE_URL = "http://localhost:5000/python"
+BASEAPI_URL = f"{BASE_URL}python/"  # Use the global base URL
 
 def get_orders_from_api(endpoint):
     """
@@ -40,8 +43,8 @@ def get_orders_from_api(endpoint):
         list: A list of orders in JSON format.
     """
     try:
-        logging.debug(f"Fetching orders from API endpoint: {BASE_URL}{endpoint}")
-        response = requests.get(f"{BASE_URL}{endpoint}")
+        logging.debug(f"Fetching orders from API endpoint: {BASEAPI_URL}{endpoint}")
+        response = requests.get(f"{BASEAPI_URL}{endpoint}")
         response.raise_for_status()
         orders = response.json().get('orders', [])
         # logging.debug(f"Orders fetched successfully: {orders}")
@@ -73,7 +76,7 @@ def update_order_in_api(order_id, updated_data):
         updated_data['order_status'] = mapped_status
         logging.debug(f"Updating order after map_tradedupe_status {order_id} with data: {updated_data}")
         
-        response = requests.put(f"{BASE_URL}/orders/{order_id}", json=updated_data)
+        response = requests.put(f"{BASEAPI_URL}/orders/{order_id}", json=updated_data)
         response.raise_for_status()
         
         result = response.json()
@@ -87,7 +90,8 @@ def update_order_in_api(order_id, updated_data):
 
 
 def close_strategy(strategy_id):
-    url = 'http://localhost:5000/order/close-strategy'
+    # url = 'http://localhost:5000/order/close-strategy'
+    url = f"{BASE_URL}order/close-strategy"  # Use the global base URL
     payload = {
         'strategy_id': strategy_id
     }
@@ -115,7 +119,7 @@ def check_pending_orders():
     """
     while True:
         # Fetch all orders from your system
-        orders_from_db = get_orders_from_api('/get-all-orders')
+        orders_from_db = get_orders_from_api('get-all-orders')
 
         if not orders_from_db:
             logging.debug("No orders found in the system.")

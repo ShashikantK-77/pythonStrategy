@@ -1,4 +1,5 @@
 import requests
+from constants import BASE_URL
 
 # def get_latest_ltp(security_id):
 #     print("security_id in get_latest_ltp-------------------------------------------------------", security_id)
@@ -32,7 +33,8 @@ def get_latest_ltp(security_id):
     print("security_id in get_latest_ltp-------------------------------------------------------", security_id)
 
     # Construct the URL with the security_id parameter
-    url = f"http://localhost:5000/python/getltp/{security_id}"
+    # url = f"http://localhost:5000/python/getltp/{security_id}"
+    url = f"{BASE_URL}python/getltp/{security_id}"  # Use the global base URL
 
     try:
         response = requests.get(url)
